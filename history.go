@@ -39,7 +39,7 @@ func (h *HistoryFile) Write(d *Divvy) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal divvy %v to JSON: %v", *d, err)
 	}
-	_, err = h.file.Write(jsonBytes)
+	_, err = h.file.Write(append(jsonBytes, []byte("\n")...))
 	if err != nil {
 		return fmt.Errorf("failed to write JSON bytes for divvy %v: %v", *d, err)
 	}
