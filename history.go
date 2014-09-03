@@ -19,9 +19,17 @@ type HistoryFile struct {
 func NewHistoryFile(historyDir string) (*HistoryFile, error) {
 	fileName := time.Now().Format(HISTORY_FILE_NAME_LAYOUT)
 	filePath := path.Join(historyDir, fileName)
-	f, err := os.Create(filePath)
+	f, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0777)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open '%v': %v", filePath, err)
+		return nil, fmt.Errorf("failed to open: %v", err)
+	}
+	return &HistoryFile{f}, nil
+}
+
+func OpenHistoryFile(historyFilePath string) (*HistoryFile, error) {
+	f, err := os.OpenFile(historyFilePath, os.O_WRONLY|os.O_APPEND, 0660)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open: %v", err)
 	}
 	return &HistoryFile{f}, nil
 }
@@ -61,7 +69,7 @@ func LoadHistory(historyDir string) ([]*Divvy, error) {
 			}
 			history = append(history, moreHistory...)
 		} else {
-			fmt.Printf("'%v' is not a file, skipping", historyFilePath)
+			fmt.Printf("'%v' is not a file, skipping\n", historyFile.Name())
 		}
 	}
 	return history, nil

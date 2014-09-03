@@ -3,13 +3,16 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path"
+	"time"
 )
 
 type parameters struct {
 	historyDir       string
 	transactionsPath string
+	continueLastFile bool
 }
 
 func main() {
@@ -36,10 +39,24 @@ func main() {
 	// TODO: create a config file and load this from it
 	people := []string{"Anne", "Mark"}
 
-	historyFile, err := NewHistoryFile(parameters.historyDir)
-	if err != nil {
-		fmt.Printf("failed to create new history file: %v\n", err)
-		return
+	var historyFile *HistoryFile
+	if parameters.continueLastFile {
+		lastHistoryFileInfo, err := GetLastModifiedFile(parameters.historyDir)
+		if err != nil {
+			fmt.Printf("failed to get latest history file: %v\n", err)
+			return
+		}
+		lastHistoryFilePath := path.Join(parameters.historyDir, lastHistoryFileInfo.Name())
+		historyFile, err = OpenHistoryFile(lastHistoryFilePath)
+		if err != nil {
+			fmt.Printf("failed to open latest history file: %v\n", err)
+		}
+	} else {
+		historyFile, err = NewHistoryFile(parameters.historyDir)
+		if err != nil {
+			fmt.Printf("failed to create new history file: %v\n", err)
+			return
+		}
 	}
 	defer historyFile.Close()
 	fmt.Printf("history file: %v\n", historyFile.Path())
@@ -76,6 +93,7 @@ func getParameters() (*parameters, error) {
 
 	var historyDir string
 	var transactionsPath string
+	var continueLastFile bool
 	flag.StringVar(
 		&historyDir,
 		"history",
@@ -87,6 +105,12 @@ func getParameters() (*parameters, error) {
 		"transactions",
 		path.Join(workingDir, "transactions.csv"),
 		"The transactions to process.",
+	)
+	flag.BoolVar(
+		&continueLastFile,
+		"continue",
+		false,
+		"Append to the latest history file instead of creating a new one.",
 	)
 	flag.Parse()
 
@@ -112,7 +136,7 @@ func getParameters() (*parameters, error) {
 		return nil, fmt.Errorf("transactions file '%v' does not exist", transactionsPath)
 	}
 
-	return &parameters{historyDir, transactionsPath}, nil
+	return &parameters{historyDir, transactionsPath, continueLastFile}, nil
 }
 
 func LoadTransactions(transactionsFilePath string) ([]*Transaction, error) {
@@ -146,4 +170,22 @@ func ReportDivvies(divvies []*Divvy) error {
 	}
 
 	return nil
+}
+
+func GetLastModifiedFile(dir string) (os.FileInfo, error) {
+	files, err := ioutil.ReadDir(dir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list files in directory '%v': %v", dir, err)
+	}
+	var lastTime time.Time = time.Time{}
+	var lastFile os.FileInfo = nil
+	for _, file := range files {
+		if !file.IsDir() && file.ModTime().After(lastTime) {
+			lastTime = file.ModTime()
+			lastFile = file
+		} else {
+			fmt.Printf("'%v' is not a file, skipping\n", file.Name())
+		}
+	}
+	return lastFile, nil
 }
