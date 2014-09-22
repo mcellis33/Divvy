@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"strings"
 	"time"
 )
 
@@ -180,11 +181,17 @@ func GetLastModifiedFile(dir string) (os.FileInfo, error) {
 	var lastTime time.Time = time.Time{}
 	var lastFile os.FileInfo = nil
 	for _, file := range files {
-		if !file.IsDir() && file.ModTime().After(lastTime) {
-			lastTime = file.ModTime()
-			lastFile = file
+		if !strings.HasPrefix(file.Name(), ".") {
+			if !file.IsDir() {
+				if file.ModTime().After(lastTime) {
+					lastTime = file.ModTime()
+					lastFile = file
+				}
+			} else {
+				fmt.Printf("'%v' is not a file, skipping\n", file.Name())
+			}
 		} else {
-			fmt.Printf("'%v' is not a file, skipping\n", file.Name())
+			fmt.Printf("'%v' is hidden, skipping\n", file.Name())
 		}
 	}
 	return lastFile, nil

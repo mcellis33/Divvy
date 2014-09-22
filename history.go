@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"strings"
 	"time"
 )
 
@@ -62,14 +63,18 @@ func LoadHistory(historyDir string) ([]*Divvy, error) {
 	}
 	for _, historyFile := range historyFiles {
 		historyFilePath := path.Join(historyDir, historyFile.Name())
-		if !historyFile.IsDir() {
-			moreHistory, err := LoadHistoryFile(historyFilePath)
-			if err != nil {
-				return nil, fmt.Errorf("failed to load history file '%v': %v", historyFilePath, err)
+		if !strings.HasPrefix(historyFile.Name(), ".") {
+			if !historyFile.IsDir() {
+				moreHistory, err := LoadHistoryFile(historyFilePath)
+				if err != nil {
+					return nil, fmt.Errorf("failed to load history file '%v': %v", historyFilePath, err)
+				}
+				history = append(history, moreHistory...)
+			} else {
+				fmt.Printf("'%v' is not a file, skipping\n", historyFile.Name())
 			}
-			history = append(history, moreHistory...)
 		} else {
-			fmt.Printf("'%v' is not a file, skipping\n", historyFile.Name())
+			fmt.Printf("'%v' is hidden, skipping\n", historyFile.Name())
 		}
 	}
 	return history, nil
