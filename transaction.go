@@ -6,48 +6,23 @@ import (
 	"fmt"
 	"io"
 	"strconv"
-	"strings"
 	"time"
 )
 
-type TransactionType int
+type TransactionType string
 
 const (
-	Debit TransactionType = iota
-	Credit
-	TransactionTypeUnknown
+	Debit  TransactionType = "debit"
+	Credit                 = "credit"
 )
 
-func (t TransactionType) String() string {
-	switch t {
-	case Debit:
-		return "Debit"
-	case Credit:
-		return "Credit"
-	case TransactionTypeUnknown:
-		return "Unknown"
-	default:
-		return "Invalid"
-	}
-}
-
-func ParseTransactionType(s string) (TransactionType, error) {
-	switch strings.ToLower(s) {
-	case "credit":
-		return Credit, nil
-	case "debit":
-		return Debit, nil
-	default:
-		return TransactionTypeUnknown, fmt.Errorf("failed to parse transaction type '%v'", s)
-	}
-}
-
+// Transactions for which the "Transaction Type" is "Debit" have a negative Amount field.
+// Transactions for which the "Transaction Type" is "Credit" have a positive Amount field.
 type Transaction struct {
 	Time                time.Time
 	Description         string
 	OriginalDescription string
 	Amount              float64
-	Type                TransactionType
 	Category            string
 	AccountName         string
 	Labels              string
@@ -61,7 +36,6 @@ func (t *Transaction) String() string {
 	b.WriteString(fmt.Sprintf("  Description:           %v\n", t.Description))
 	b.WriteString(fmt.Sprintf("  Original Description:  %v\n", t.OriginalDescription))
 	b.WriteString(fmt.Sprintf("  Amount:                %v\n", t.Amount))
-	b.WriteString(fmt.Sprintf("  Type:                  %v\n", t.Type))
 	b.WriteString(fmt.Sprintf("  Category:              %v\n", t.Category))
 	b.WriteString(fmt.Sprintf("  Account Name:          %v\n", t.AccountName))
 	b.WriteString(fmt.Sprintf("  Labels:                %v\n", t.Labels))
@@ -88,6 +62,9 @@ func ParseTransactions(reader io.Reader) (transactions []*Transaction, err error
 	if err != nil {
 		return nil, fmt.Errorf("error parsing transactions as csv: %v", err)
 	}
+	if IsTransactionsHeader(records[0]) {
+		records = records[1:]
+	}
 	dateFormat := "1/2/2006"
 	for _, record := range records {
 		time, err := time.Parse(dateFormat, record[0])
@@ -100,9 +77,11 @@ func ParseTransactions(reader io.Reader) (transactions []*Transaction, err error
 		if err != nil {
 			ReportError(fmt.Errorf("failed to parse transaction amount '%v': %v", record[3], err))
 		}
-		transactionType, err := ParseTransactionType(record[4])
-		if err != nil {
-			ReportError(fmt.Errorf("failed to parse transaction type '%v': %v", record[4], err))
+		transactionType := TransactionType(record[4])
+		if transactionType == Debit {
+			amount = -amount
+		} else if transactionType != Credit {
+			ReportError(fmt.Errorf("invalid transaction type '%v'", transactionType))
 		}
 		category := record[5]
 		accountName := record[6]
@@ -114,7 +93,6 @@ func ParseTransactions(reader io.Reader) (transactions []*Transaction, err error
 			description,
 			originalDescription,
 			amount,
-			transactionType,
 			category,
 			accountName,
 			labels,
@@ -123,6 +101,16 @@ func ParseTransactions(reader io.Reader) (transactions []*Transaction, err error
 		transactions = append(transactions, newTransaction)
 	}
 	return transactions, nil
+}
+
+func IsTransactionsHeader(record []string) bool {
+	transactionsHeader := [...]string{"Date", "Description", "Original Description", "Amount", "Transaction Type", "Category", "Account Name", "Labels", "Notes"}
+	for i, v := range transactionsHeader {
+		if record[i] != v {
+			return false
+		}
+	}
+	return true
 }
 
 func ReportError(e error) {
