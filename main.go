@@ -14,6 +14,7 @@ type parameters struct {
 	historyDir       string
 	transactionsPath string
 	continueLastFile bool
+	settlementPeriod time.Duration
 }
 
 func main() {
@@ -24,7 +25,7 @@ func main() {
 	}
 
 	// Load transactions
-	transactions, err := LoadTransactions(parameters.transactionsPath)
+	transactions, err := LoadTransactions(parameters.transactionsPath, parameters.settlementPeriod)
 	if err != nil {
 		fmt.Printf("failed to load transactions: %v\n", err)
 		return
@@ -95,6 +96,7 @@ func getParameters() (*parameters, error) {
 	var historyDir string
 	var transactionsPath string
 	var continueLastFile bool
+	var settlementPeriod time.Duration
 	flag.StringVar(
 		&historyDir,
 		"history",
@@ -112,6 +114,15 @@ func getParameters() (*parameters, error) {
 		"continue",
 		false,
 		"Append to the latest history file instead of creating a new one.",
+	)
+	flag.DurationVar(
+		&settlementPeriod,
+		"settlement-period",
+		168*time.Hour,
+		"When transactions settle, their dates and descriptions sometimes change "+
+			"such that they look like new transactions to divvy. This causes duplicate "+
+			"divvies. Thus, we only load transactions that are older than the "+
+			"settlement period.",
 	)
 	flag.Parse()
 
@@ -137,10 +148,15 @@ func getParameters() (*parameters, error) {
 		return nil, fmt.Errorf("transactions file '%v' does not exist", transactionsPath)
 	}
 
-	return &parameters{historyDir, transactionsPath, continueLastFile}, nil
+	// Validate settlement period
+	if settlementPeriod < 0 {
+		return nil, fmt.Errorf("settlement period cannot be negative")
+	}
+
+	return &parameters{historyDir, transactionsPath, continueLastFile, settlementPeriod}, nil
 }
 
-func LoadTransactions(transactionsFilePath string) ([]*Transaction, error) {
+func LoadTransactions(transactionsFilePath string, settlementPeriod time.Duration) ([]*Transaction, error) {
 	f, err := os.Open(transactionsFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open transactions file '%v': %v", transactionsFilePath, err)
@@ -149,7 +165,23 @@ func LoadTransactions(transactionsFilePath string) ([]*Transaction, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse transactions: %v", err)
 	}
-	return transactions, nil
+	// Only load transactions that are older than the settlement period.
+	settled := make([]*Transaction, 0)
+	pending := make([]*Transaction, 0)
+	settledDate := time.Now().Add(-settlementPeriod)
+	for _, t := range transactions {
+		if t.Time.Before(settledDate) {
+			settled = append(settled, t)
+		} else {
+			pending = append(pending, t)
+		}
+	}
+	// Notify the user which transactions are pending and thus ignored.
+	fmt.Printf("Pending transactions ignored:\n")
+	for _, t := range pending {
+		fmt.Printf("    %v\n", t.Id())
+	}
+	return settled, nil
 }
 
 func ReportDivvies(divvies []*Divvy) error {
