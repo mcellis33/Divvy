@@ -44,7 +44,7 @@ func (t *Transaction) String() string {
 }
 
 func (t *Transaction) AbbrString() string {
-	return fmt.Sprintf("%v $%v '%v'", t.Time, t.Amount, t.Description)
+	return fmt.Sprintf("%v $%v '%v'", t.Time, t.Amount, t.OriginalDescription)
 }
 
 type TransactionId string
