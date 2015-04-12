@@ -15,6 +15,7 @@ type parameters struct {
 	transactionsPath string
 	continueLastFile bool
 	settlementPeriod time.Duration
+	checkHistory     bool
 }
 
 func main() {
@@ -93,30 +94,27 @@ func getParameters() (*parameters, error) {
 		return nil, fmt.Errorf("failed to get the working directory: %v", err)
 	}
 
-	var historyDir string
-	var transactionsPath string
-	var continueLastFile bool
-	var settlementPeriod time.Duration
+	p := &parameters{}
 	flag.StringVar(
-		&historyDir,
+		&p.historyDir,
 		"history",
 		path.Join(workingDir, "divvy_history"),
 		"The directory in which program results are stored.",
 	)
 	flag.StringVar(
-		&transactionsPath,
+		&p.transactionsPath,
 		"transactions",
 		path.Join(workingDir, "transactions.csv"),
 		"The transactions to process.",
 	)
 	flag.BoolVar(
-		&continueLastFile,
+		&p.continueLastFile,
 		"continue",
 		false,
 		"Append to the latest history file instead of creating a new one.",
 	)
 	flag.DurationVar(
-		&settlementPeriod,
+		&p.settlementPeriod,
 		"settlement-period",
 		168*time.Hour,
 		"When transactions settle, their dates and descriptions sometimes change "+
@@ -124,36 +122,42 @@ func getParameters() (*parameters, error) {
 			"divvies. Thus, we only load transactions that are older than the "+
 			"settlement period.",
 	)
+	flag.BoolVar(
+		&p.checkHistory,
+		"check-history",
+		false,
+		"Ensure that every entry in the history is represented in the transactions file exactly once.",
+	)
 	flag.Parse()
 
 	// Validate that history directory exists
-	historyDirStat, err := os.Stat(historyDir)
+	historyDirStat, err := os.Stat(p.historyDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			mkdErr := os.Mkdir(historyDir, 0777)
+			mkdErr := os.Mkdir(p.historyDir, 0777)
 			if mkdErr != nil {
-				return nil, fmt.Errorf("failed to create history directory '%v': %v", historyDir, err)
+				return nil, fmt.Errorf("failed to create history directory '%v': %v", p.historyDir, err)
 			}
 		} else {
-			return nil, fmt.Errorf("failed to query history directory '%v': %v", historyDir, err)
+			return nil, fmt.Errorf("failed to query history directory '%v': %v", p.historyDir, err)
 		}
 	} else {
 		if !historyDirStat.IsDir() {
-			fmt.Printf("'%v' is not a directory", historyDir)
+			return nil, fmt.Errorf("'%v' is not a directory", p.historyDir)
 		}
 	}
 
 	// Validate that transactions file exists
-	if _, err := os.Stat(transactionsPath); err != nil {
-		return nil, fmt.Errorf("transactions file '%v' does not exist", transactionsPath)
+	if _, err := os.Stat(p.transactionsPath); err != nil {
+		return nil, fmt.Errorf("transactions file '%v' does not exist", p.transactionsPath)
 	}
 
 	// Validate settlement period
-	if settlementPeriod < 0 {
+	if p.settlementPeriod < 0 {
 		return nil, fmt.Errorf("settlement period cannot be negative")
 	}
 
-	return &parameters{historyDir, transactionsPath, continueLastFile, settlementPeriod}, nil
+	return p, nil
 }
 
 func LoadTransactions(transactionsFilePath string, settlementPeriod time.Duration) ([]*Transaction, error) {
