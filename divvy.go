@@ -88,3 +88,35 @@ func DivvyTransactions(
 
 	return nil
 }
+
+// Diff the history with the transactions and return the extra transactions
+// and extra history.
+func CheckHistory(transactions []*Transaction, history []*Divvy) (extraTransactions []*Transaction, extraHistory []*Divvy, err error) {
+	// Build an map from Transaction IDs to Transactions. Error out on
+	// duplicate transaction IDs.
+	transactionIndex := map[TransactionId]*Transaction{}
+	for _, t := range transactions {
+		transactionIndex[t.Id()] = t
+	}
+	// For each history entry whose transaction is in the map, remove that
+	// transaction from the map. For each history whose transaction is NOT in
+	// the map, add that history entry to the extraHistory list.
+	extraHistory = []*Divvy{}
+	for _, h := range history {
+		id := h.Transaction.Id()
+		_, ok := transactionIndex[id]
+		if ok {
+			delete(transactionIndex, id)
+		} else {
+			extraHistory = append(extraHistory, h)
+		}
+	}
+	// We are left with a map full of transactions that are not represented in
+	// the history.
+	extraTransactions = []*Transaction{}
+	for _, t := range transactionIndex {
+		extraTransactions = append(extraTransactions, t)
+	}
+
+	return extraTransactions, extraHistory, nil
+}

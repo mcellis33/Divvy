@@ -39,6 +39,29 @@ func main() {
 		return
 	}
 
+	if parameters.checkHistory {
+		extraTransactions, extraHistory, err := CheckHistory(transactions, history)
+		if err != nil {
+			fmt.Printf("failed to check history: %v\n", err)
+			return
+		}
+		fmt.Printf("Extra transactions:\n")
+		for _, t := range extraTransactions {
+			fmt.Printf("%v\n", t)
+		}
+		fmt.Printf("Extra divvies in history:\n")
+		for _, h := range extraHistory {
+			if h.Transaction.Description != "Payroll Contribution" &&
+				h.Transaction.Description != "Deposit Shared Branch" &&
+				h.Transaction.AccountName != "Microsoft 401k" &&
+				h.Transaction.Category != "Dividend & Cap Gains" &&
+				len(h.Assignment) != 0 {
+				fmt.Printf("%v\n", h)
+			}
+		}
+		return
+	}
+
 	// TODO: create a config file and load this from it
 	people := []string{"Anne", "Mark"}
 
@@ -126,7 +149,9 @@ func getParameters() (*parameters, error) {
 		&p.checkHistory,
 		"check-history",
 		false,
-		"Ensure that every entry in the history is represented in the transactions file exactly once.",
+		"Map each entry in the history to an entry in the transactions file, "+
+			"then print all unmapped entries in the history. "+
+			"This is intended to find transactions that Mint modified.",
 	)
 	flag.Parse()
 
