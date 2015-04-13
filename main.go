@@ -244,9 +244,14 @@ func GetLastModifiedFile(dir string) (os.FileInfo, error) {
 	for _, file := range files {
 		if !strings.HasPrefix(file.Name(), ".") {
 			if !file.IsDir() {
-				if file.ModTime().After(lastTime) {
-					lastTime = file.ModTime()
-					lastFile = file
+				t, err := ParseHistoryFileCreationTimeFromName(file.Name())
+				if err != nil {
+					fmt.Printf("failed to get creation time: %v\n", err)
+				} else {
+					if t.After(lastTime) {
+						lastTime = t
+						lastFile = file
+					}
 				}
 			} else {
 				fmt.Printf("'%v' is not a file, skipping\n", file.Name())

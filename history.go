@@ -27,6 +27,10 @@ func NewHistoryFile(historyDir string) (*HistoryFile, error) {
 	return &HistoryFile{f}, nil
 }
 
+func ParseHistoryFileCreationTimeFromName(filename string) (time.Time, error) {
+	return time.Parse(HISTORY_FILE_NAME_LAYOUT, filename)
+}
+
 func OpenHistoryFile(historyFilePath string) (*HistoryFile, error) {
 	f, err := os.OpenFile(historyFilePath, os.O_WRONLY|os.O_APPEND, 0660)
 	if err != nil {
