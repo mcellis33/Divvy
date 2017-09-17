@@ -16,12 +16,26 @@ type parameters struct {
 	continueLastFile bool
 	settlementPeriod time.Duration
 	checkHistory     bool
+	sumFile          string
 }
 
 func main() {
 	parameters, err := getParameters()
 	if err != nil {
 		fmt.Printf("error in parameters: %v\n", err)
+		return
+	}
+
+	if parameters.sumFile != "" {
+		divvies, err := LoadHistoryFile(parameters.sumFile)
+		if err != nil {
+			fmt.Printf("failed to load history file for sum: %v\n", err)
+			return
+		}
+		err = ReportDivvies(divvies)
+		if err != nil {
+			fmt.Printf("failed to report divvies for sum: %v\n", err)
+		}
 		return
 	}
 
@@ -153,7 +167,16 @@ func getParameters() (*parameters, error) {
 			"then print all unmapped entries in the history. "+
 			"This is intended to find transactions that Mint modified.",
 	)
+	flag.StringVar(
+		&p.sumFile,
+		"sum",
+		"",
+		"Show the sum from a history file.")
 	flag.Parse()
+
+	if p.sumFile != "" {
+		return p, nil
+	}
 
 	// Validate that history directory exists
 	historyDirStat, err := os.Stat(p.historyDir)
